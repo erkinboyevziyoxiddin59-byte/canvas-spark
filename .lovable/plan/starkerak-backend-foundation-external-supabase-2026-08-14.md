@@ -42,6 +42,7 @@ Gold/Diamond ×1.00/1.10/1.25/1.50/2.00) · `rewards` (seeded 500→50, 1000→1
 `missions` + `mission_completions` · `admin_audit_log`.
 
 Consistency guards baked into the schema:
+
 - partial unique index on `amount_uzs` for open orders → no two payable orders share an amount
 - unique `(user_id, type, order_id)` in the ledger → points can never be awarded twice
 - unique ledger keys per mission and per referral → no duplicate rewards
@@ -58,15 +59,15 @@ in one transaction, with cooldown), `reject_reward_request()` (refund once),
 - **auth** — `authenticate(initData, startParam)`, `getSession()`, referral attribution at signup
 - **settings** — public pricing/card/maintenance; admin writes
 - **orders** — `createOrder` (server recomputes price from settings; frontend price ignored),
-  `listMyOrders`, `getMyOrder`, `cancelOrder`
+`listMyOrders`, `getMyOrder`, `cancelOrder`
 - **payments** — `submitPayment` (user says "I paid"); `verifyPayment` / `rejectPayment` are
-  admin-only and are the only paths that complete an order
+admin-only and are the only paths that complete an order
 - **loyalty** — `getPoints`, `getLedger`, `redeemReward`, levels & rewards
 - **referrals** — my code, link, invited list, stats
 - **missions** — list, complete
 - **profile** — one aggregated read for the profile page
 - **admin** — users/orders/payments/requests/referrals queues, mission & settings management;
-  every call re-checks `has_role('admin')` and writes to `admin_audit_log`
+every call re-checks `has_role('admin')` and writes to `admin_audit_log`
 
 ## 3. Frontend data layer
 
@@ -77,7 +78,7 @@ loading/error states and the payment screen's actions change:
 
 - `stars` / `premium` → `createOrder` mutation
 - `payment.$orderId` → DB-owned `expires_at` countdown; "I paid" now submits a payment and
-  shows "waiting for admin verification" instead of self-delivering; light polling for status
+shows "waiting for admin verification" instead of self-delivering; light polling for status
 - `orders`, `points`, `missions`, `referral`, `profile` → real data
 - `admin` → gated by server-side role check; renders "not authorized" otherwise
 - Errors surface through the existing UI (no silent failures)
@@ -103,9 +104,13 @@ verified by calling the endpoints directly rather than through the UI.
 ## Notes / decisions for later
 
 - Realtime is intentionally left out; the payment screen polls while awaiting verification.
-  Easy to add later on `orders`/`payments` only.
+Easy to add later on `orders`/`payments` only.
 - Admins are bootstrapped from `ADMIN_TELEGRAM_IDS`; a proper admin-manages-admins screen
-  can come later.
+can come later.
 - Receipt image upload for payments is scaffolded (`receipt_url`) but not wired to Storage yet.
 
-Switch to build mode and approve, and I'll implement all of it in this task.
+Switch to build mode and approve, and I'll implement all of it in this task. TELEGRAM_BOT_TOKEN = : 8612478490:AAEyT9rb71HWIOoxNxQsQT8CsTC-SX8x2Qg]
+
+SESSION_SECRET     = [random secret you generate]
+
+ADMIN_TELEGRAM_IDS = [your Telegram ID 1208388326] 
