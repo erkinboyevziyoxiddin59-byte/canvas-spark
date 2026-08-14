@@ -102,10 +102,17 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+function SessionBootstrap({ children }: { children: ReactNode }) {
+  // Establishes the verified server session as soon as the app mounts.
+  useSession();
+  return <>{children}</>;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
+      <SessionBootstrap>
       <LanguageProvider>
         <LanguageGate>
           <MaintenanceGate>
