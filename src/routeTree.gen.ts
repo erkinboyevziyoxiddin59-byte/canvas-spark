@@ -10,33 +10,154 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminRouteImport } from './routes/admin'
+import { Route as MissionsRouteImport } from './routes/missions'
+import { Route as OrdersRouteImport } from './routes/orders'
+import { Route as PointsRouteImport } from './routes/points'
+import { Route as PremiumRouteImport } from './routes/premium'
+import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as ReferralRouteImport } from './routes/referral'
+import { Route as StarsRouteImport } from './routes/stars'
+import { Route as PaymentOrderIdRouteImport } from './routes/payment.$orderId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MissionsRoute = MissionsRouteImport.update({
+  id: '/missions',
+  path: '/missions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrdersRoute = OrdersRouteImport.update({
+  id: '/orders',
+  path: '/orders',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PointsRoute = PointsRouteImport.update({
+  id: '/points',
+  path: '/points',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PremiumRoute = PremiumRouteImport.update({
+  id: '/premium',
+  path: '/premium',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReferralRoute = ReferralRouteImport.update({
+  id: '/referral',
+  path: '/referral',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StarsRoute = StarsRouteImport.update({
+  id: '/stars',
+  path: '/stars',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PaymentOrderIdRoute = PaymentOrderIdRouteImport.update({
+  id: '/payment/$orderId',
+  path: '/payment/$orderId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
+  '/missions': typeof MissionsRoute
+  '/orders': typeof OrdersRoute
+  '/points': typeof PointsRoute
+  '/premium': typeof PremiumRoute
+  '/profile': typeof ProfileRoute
+  '/referral': typeof ReferralRoute
+  '/stars': typeof StarsRoute
+  '/payment/$orderId': typeof PaymentOrderIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
+  '/missions': typeof MissionsRoute
+  '/orders': typeof OrdersRoute
+  '/points': typeof PointsRoute
+  '/premium': typeof PremiumRoute
+  '/profile': typeof ProfileRoute
+  '/referral': typeof ReferralRoute
+  '/stars': typeof StarsRoute
+  '/payment/$orderId': typeof PaymentOrderIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
+  '/missions': typeof MissionsRoute
+  '/orders': typeof OrdersRoute
+  '/points': typeof PointsRoute
+  '/premium': typeof PremiumRoute
+  '/profile': typeof ProfileRoute
+  '/referral': typeof ReferralRoute
+  '/stars': typeof StarsRoute
+  '/payment/$orderId': typeof PaymentOrderIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/missions'
+    | '/orders'
+    | '/points'
+    | '/premium'
+    | '/profile'
+    | '/referral'
+    | '/stars'
+    | '/payment/$orderId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/admin'
+    | '/missions'
+    | '/orders'
+    | '/points'
+    | '/premium'
+    | '/profile'
+    | '/referral'
+    | '/stars'
+    | '/payment/$orderId'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/missions'
+    | '/orders'
+    | '/points'
+    | '/premium'
+    | '/profile'
+    | '/referral'
+    | '/stars'
+    | '/payment/$orderId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRoute
+  MissionsRoute: typeof MissionsRoute
+  OrdersRoute: typeof OrdersRoute
+  PointsRoute: typeof PointsRoute
+  PremiumRoute: typeof PremiumRoute
+  ProfileRoute: typeof ProfileRoute
+  ReferralRoute: typeof ReferralRoute
+  StarsRoute: typeof StarsRoute
+  PaymentOrderIdRoute: typeof PaymentOrderIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +169,83 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/missions': {
+      id: '/missions'
+      path: '/missions'
+      fullPath: '/missions'
+      preLoaderRoute: typeof MissionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/orders': {
+      id: '/orders'
+      path: '/orders'
+      fullPath: '/orders'
+      preLoaderRoute: typeof OrdersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/points': {
+      id: '/points'
+      path: '/points'
+      fullPath: '/points'
+      preLoaderRoute: typeof PointsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/premium': {
+      id: '/premium'
+      path: '/premium'
+      fullPath: '/premium'
+      preLoaderRoute: typeof PremiumRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/referral': {
+      id: '/referral'
+      path: '/referral'
+      fullPath: '/referral'
+      preLoaderRoute: typeof ReferralRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/stars': {
+      id: '/stars'
+      path: '/stars'
+      fullPath: '/stars'
+      preLoaderRoute: typeof StarsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/payment/$orderId': {
+      id: '/payment/$orderId'
+      path: '/payment/$orderId'
+      fullPath: '/payment/$orderId'
+      preLoaderRoute: typeof PaymentOrderIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRoute,
+  MissionsRoute: MissionsRoute,
+  OrdersRoute: OrdersRoute,
+  PointsRoute: PointsRoute,
+  PremiumRoute: PremiumRoute,
+  ProfileRoute: ProfileRoute,
+  ReferralRoute: ReferralRoute,
+  StarsRoute: StarsRoute,
+  PaymentOrderIdRoute: PaymentOrderIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
