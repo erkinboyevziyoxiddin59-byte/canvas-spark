@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import type { TelegramUserPayload } from "./server/core.server";
 
 export interface SessionUser {
   id: string;
