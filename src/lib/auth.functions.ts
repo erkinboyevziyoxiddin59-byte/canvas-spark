@@ -26,7 +26,7 @@ export const authenticate = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<SessionUser> => {
     const core = await import("./server/core.server");
 
-    let payload: core.TelegramUserPayload;
+    let payload: TelegramUserPayload;
     if (data.initData) {
       payload = await core.verifyInitData(data.initData);
     } else if (core.devAuthEnabled()) {
