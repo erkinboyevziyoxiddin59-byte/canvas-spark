@@ -14,6 +14,7 @@ import { BottomNav } from "../components/BottomNav";
 import { LanguageProvider } from "../lib/language";
 import { LanguageGate } from "../components/LanguageGate";
 import { MaintenanceGate } from "../components/MaintenanceGate";
+import { useSession } from "../hooks/useSession";
 
 
 function NotFoundComponent() {
@@ -102,10 +103,17 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+function SessionBootstrap({ children }: { children: ReactNode }) {
+  // Establishes the verified server session as soon as the app mounts.
+  useSession();
+  return <>{children}</>;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
+      <SessionBootstrap>
       <LanguageProvider>
         <LanguageGate>
           <MaintenanceGate>
@@ -118,6 +126,7 @@ function RootComponent() {
           </MaintenanceGate>
         </LanguageGate>
       </LanguageProvider>
+      </SessionBootstrap>
     </QueryClientProvider>
 
   );
