@@ -14,6 +14,7 @@ import { BottomNav } from "../components/BottomNav";
 import { LanguageProvider } from "../lib/language";
 import { LanguageGate } from "../components/LanguageGate";
 import { MaintenanceGate } from "../components/MaintenanceGate";
+import { useSession } from "../hooks/useSession";
 
 
 function NotFoundComponent() {
@@ -125,6 +126,7 @@ function RootComponent() {
           </MaintenanceGate>
         </LanguageGate>
       </LanguageProvider>
+      </SessionBootstrap>
     </QueryClientProvider>
 
   );
