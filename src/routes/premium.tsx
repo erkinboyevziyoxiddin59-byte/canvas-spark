@@ -1,10 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Crown, AtSign, Check } from "lucide-react";
 import { AppHeader } from "../components/AppHeader";
-import { useTelegramUser } from "../hooks/useTelegramUser";
-import { createOrder, formatAmount } from "../lib/mock-store";
-import { usePricing } from "../hooks/usePricing";
+import { useSession } from "../hooks/useSession";
+import { formatAmount } from "../lib/format";
+import { createOrder } from "../lib/orders.functions";
+import { useAppConfig } from "../hooks/useAppConfig";
 import { useT } from "../lib/language";
 
 export const Route = createFileRoute("/premium")({
@@ -27,23 +29,34 @@ function PremiumPage() {
   const navigate = useNavigate();
   const t = useT();
   const [username, setUsername] = useState("");
-  const tg = useTelegramUser();
+  const { session } = useSession();
+  const queryClient = useQueryClient();
   const [months, setMonths] = useState<3 | 6 | 12>(6);
-  const pricing = usePricing();
+  const { config } = useAppConfig();
+  const premium = (m: number) => config.pricing.premium[String(m)] ?? 0;
 
   const cleanUsername = username.trim().replace(/^@/, "");
   const validUsername = /^[a-zA-Z][a-zA-Z0-9_]{2,31}$/.test(cleanUsername);
-  const price = pricing.premium[months];
+  const price = premium(months);
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      createOrder({
+        data: {
+          recipientUsername: cleanUsername,
+          productType: `premium_${months}` as const,
+          quantity: months,
+        },
+      }),
+    onSuccess: (order) => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      navigate({ to: "/payment/$orderId", params: { orderId: order.id } });
+    },
+  });
 
   const submit = () => {
-    if (!validUsername) return;
-    const order = createOrder({
-      targetUsername: cleanUsername,
-      type: `premium_${months}` as const,
-      quantity: months,
-      basePrice: price,
-    });
-    navigate({ to: "/payment/$orderId", params: { orderId: String(order.id) } });
+    if (!validUsername || mutation.isPending) return;
+    mutation.mutate();
   };
 
   return (
@@ -67,14 +80,14 @@ function PremiumPage() {
               className="w-full rounded-xl border border-border bg-input py-3 pl-9 pr-3 text-sm placeholder:text-muted-foreground/60 focus:border-primary-glow focus:outline-none focus:ring-2 focus:ring-primary-glow/30"
             />
           </div>
-          {tg.username && (
+          {session?.username && (
             <button
               type="button"
-              onClick={() => setUsername(tg.username!)}
+              onClick={() => setUsername(session.username!)}
               className="no-tap-highlight mt-2.5 flex w-full items-center justify-center gap-2 rounded-xl border border-primary-glow bg-primary/25 px-4 py-3 text-sm font-bold text-foreground"
             >
               <AtSign className="h-4 w-4" />
-              {t.selfButton(tg.username)}
+              {t.selfButton(session.username)}
             </button>
           )}
         </section>
@@ -100,7 +113,7 @@ function PremiumPage() {
                   <div>
                     <p className="text-sm font-semibold">Premium · {t.monthsLabel(p.months)}</p>
                     <p className="text-xs text-muted-foreground">
-                      {formatAmount(Math.round(pricing.premium[p.months] / p.months))} UZS / {t.perMonth}
+                      {formatAmount(Math.round(premium(p.months) / p.months))} UZS / {t.perMonth}
                     </p>
                   </div>
                 </div>
@@ -111,7 +124,7 @@ function PremiumPage() {
                     </span>
                   )}
                   <div className="text-right">
-                    <p className="text-sm font-bold">{formatAmount(pricing.premium[p.months])}</p>
+                    <p className="text-sm font-bold">{formatAmount(premium(p.months))}</p>
                     <p className="text-[10px] text-muted-foreground">UZS</p>
                   </div>
                   <div
@@ -128,9 +141,15 @@ function PremiumPage() {
         </section>
 
 
+        {mutation.error && (
+          <p className="rounded-2xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-center text-xs text-destructive">
+            {(mutation.error as Error).message}
+          </p>
+        )}
+
         <button
           onClick={submit}
-          disabled={!validUsername}
+          disabled={!validUsername || mutation.isPending}
           className="w-full rounded-full py-3.5 text-sm font-semibold btn-primary-glow disabled:opacity-40 disabled:shadow-none no-tap-highlight"
         >
           {t.payAmount(formatAmount(price))}

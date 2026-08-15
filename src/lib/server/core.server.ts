@@ -129,9 +129,44 @@ export async function verifyInitData(initData: string): Promise<TelegramUserPayl
   };
 }
 
+/* ---------------- environment / dev auth guard ---------------- */
+
+/**
+ * True when the server is running a production deployment.
+ * Derived from the runtime environment, never from the dev-auth flag itself.
+ */
+export function isProduction(): boolean {
+  const appEnv = (process.env["APP_ENV"] ?? process.env["LOVABLE_ENV"] ?? "").toLowerCase();
+  if (appEnv) return appEnv === "production" || appEnv === "prod";
+  return (process.env["NODE_ENV"] ?? "").toLowerCase() === "production";
+}
+
+let devAuthMisconfigLogged = false;
+
+/**
+ * Dev auth (session without signed Telegram initData) is a development-only escape hatch.
+ * In production ALLOW_DEV_AUTH must be explicitly "false"; anything else is a
+ * misconfiguration and we fail closed instead of issuing a fake identity.
+ */
+export function assertDevAuthConfig(): void {
+  if (!isProduction()) return;
+  const flag = process.env["ALLOW_DEV_AUTH"];
+  if (flag === "false") return;
+  if (!devAuthMisconfigLogged) {
+    devAuthMisconfigLogged = true;
+    console.error(
+      `[security] ALLOW_DEV_AUTH must be explicitly "false" in production (got ${flag === undefined ? "unset" : JSON.stringify(flag)}). Dev authentication is disabled and authentication will fail until this is fixed.`,
+    );
+  }
+  throw new AppError("dev_auth_misconfigured");
+}
+
 export function devAuthEnabled(): boolean {
+  // Never available in production, regardless of the flag value.
+  if (isProduction()) return false;
   return process.env["ALLOW_DEV_AUTH"] === "true";
 }
+
 
 /* ---------------- users ---------------- */
 

@@ -356,3 +356,111 @@ export const listAuditLog = createServerFn({ method: "GET" }).handler(async () =
     };
   });
 });
+
+/* ---------------- missions ---------------- */
+
+export interface AdminMissionRow {
+  id: string;
+  title: string;
+  description: string;
+  url: string;
+  points: number;
+  active: boolean;
+  createdAt: string;
+  completions: number;
+}
+
+export const listAdminMissions = createServerFn({ method: "GET" }).handler(
+  async (): Promise<AdminMissionRow[]> => {
+    const core = await import("./server/core.server");
+    await core.requireAdmin();
+    const [{ data: missions }, { data: completions }] = await Promise.all([
+      core.db.from("missions").select("*").order("created_at", { ascending: false }),
+      core.db.from("mission_completions").select("mission_id"),
+    ]);
+    const counts = new Map<string, number>();
+    for (const c of completions ?? []) counts.set(c.mission_id, (counts.get(c.mission_id) ?? 0) + 1);
+    return (missions ?? []).map((m) => ({
+      id: m.id,
+      title: m.title,
+      description: m.description,
+      url: m.url,
+      points: m.points,
+      active: m.active,
+      createdAt: m.created_at,
+      completions: counts.get(m.id) ?? 0,
+    }));
+  },
+);
+
+function validateMission(input: {
+  title?: unknown;
+  description?: unknown;
+  url?: unknown;
+  points?: unknown;
+  active?: unknown;
+}) {
+  const title = String(input.title ?? "").trim().slice(0, 120);
+  if (!title) throw new Error("invalid_title");
+  const points = Math.floor(Number(input.points));
+  if (!Number.isFinite(points) || points < 0 || points > 100000) throw new Error("invalid_points");
+  const url = String(input.url ?? "").trim().slice(0, 500);
+  if (url && !/^https?:\/\//i.test(url)) throw new Error("invalid_url");
+  return {
+    title,
+    description: String(input.description ?? "").trim().slice(0, 500),
+    url,
+    points,
+    active: input.active === undefined ? true : Boolean(input.active),
+  };
+}
+
+export const createMission = createServerFn({ method: "POST" })
+  .inputValidator(validateMission)
+  .handler(async ({ data }) => {
+    const core = await import("./server/core.server");
+    const admin = await core.requireAdmin();
+    const { data: row, error } = await core.db.from("missions").insert(data).select().single();
+    if (error || !row) throw new core.AppError("mission_create_failed");
+    await core.audit(admin.id, "mission.create", "missions", row.id, { title: row.title, points: row.points });
+    return { ok: true, id: row.id };
+  });
+
+export const updateMission = createServerFn({ method: "POST" })
+  .inputValidator(
+    (input: {
+      id: string;
+      title?: unknown;
+      description?: unknown;
+      url?: unknown;
+      points?: unknown;
+      active?: unknown;
+    }) => ({
+      id: String(input.id),
+      ...validateMission(input),
+    }),
+  )
+
+  .handler(async ({ data }) => {
+    const core = await import("./server/core.server");
+    const admin = await core.requireAdmin();
+    const { id, ...patch } = data;
+    const { error } = await core.db
+      .from("missions")
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) throw new core.AppError("mission_update_failed");
+    await core.audit(admin.id, "mission.update", "missions", id, patch);
+    return { ok: true };
+  });
+
+export const deleteMission = createServerFn({ method: "POST" })
+  .inputValidator((input: { id: string }) => ({ id: String(input.id) }))
+  .handler(async ({ data }) => {
+    const core = await import("./server/core.server");
+    const admin = await core.requireAdmin();
+    const { error } = await core.db.from("missions").delete().eq("id", data.id);
+    if (error) throw new core.AppError("mission_delete_failed");
+    await core.audit(admin.id, "mission.delete", "missions", data.id, {});
+    return { ok: true };
+  });

@@ -25,6 +25,8 @@ export const authenticate = createServerFn({ method: "POST" })
   }))
   .handler(async ({ data }): Promise<SessionUser> => {
     const core = await import("./server/core.server");
+    // Fail closed when a production deployment still allows dev authentication.
+    core.assertDevAuthConfig();
 
     let payload: TelegramUserPayload;
     if (data.initData) {
@@ -42,6 +44,7 @@ export const authenticate = createServerFn({ method: "POST" })
     } else {
       throw new core.AppError("invalid_init_data");
     }
+
 
     const user = await core.upsertTelegramUser(payload);
     await core.attachReferral(user, data.startParam);
