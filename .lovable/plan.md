@@ -35,7 +35,19 @@ Route order: Stars → Premium → Payment → Orders → Points → Referral �
 - `useTelegramUser` is deleted; screens take identity from `useSession` (the verified server session). `initDataUnsafe` is no longer read anywhere.
 - Admin route: gated on the server-verified `isAdmin` flag, showing a "not authorized" state instead of the panel; every admin server function keeps its own `requireAdmin` check, so the UI gate is only cosmetic.
 - Points, levels, referral rewards and order completion stay server-computed — the client only displays them.
-- `ALLOW_DEV_AUTH` stays `true`.
+- `ALLOW_DEV_AUTH` stays `true` for preview/development, with a production guard (below).
+
+## Dev authentication guard
+
+Dev auth currently turns on whenever `ALLOW_DEV_AUTH === "true"`, with no notion of environment — a leftover value would silently let anyone sign in as a fake Telegram user in production. Tighten it to:
+
+- Detect production on the server (build/runtime environment flag plus an explicit `APP_ENV`/deploy indicator), independent of the dev-auth variable itself.
+- In production, `ALLOW_DEV_AUTH` must be explicitly `"false"`. Any other value — `"true"`, empty, or unset — is a misconfiguration.
+- On that misconfiguration the app fails safely: dev auth is never granted, the authenticate call rejects with a clear configuration error instead of issuing a session, and the failure is logged server-side once at startup of the request path so it's visible in logs.
+- Outside production, `ALLOW_DEV_AUTH=true` behaves exactly as today.
+- The dev-user branch in `authenticate` is unreachable in production regardless of the flag, so a signed `initData` is the only way to get a session there.
+- Note in the project docs/README that going live requires setting `ALLOW_DEV_AUTH=false`.
+
 
 ## Cleanup
 
