@@ -1,47 +1,73 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { Copy, Check, CreditCard, Clock, CheckCircle2, Sparkles } from "lucide-react";
-import { AppHeader } from "../components/AppHeader";
-import {
-  CARD_HOLDER,
-  CARD_NUMBER,
-  cancelOrder,
-  formatAmount,
-  getOrder,
-  markPaid,
-  ORDER_EXPIRE_MINUTES,
-  typeLabel,
-  type Order,
-} from "../lib/mock-store";
-import { useT } from "../lib/language";
-
-export const Route = createFileRoute("/payment/$orderId")({
-  head: () => ({
-    meta: [
-      { title: "To‘lov — Starbbot" },
-      { name: "description", content: "Buyurtma uchun to‘lov ma’lumotlari." },
-    ],
-  }),
-  component: PaymentPage,
-});
-
 function PaymentPage() {
   const { orderId } = Route.useParams();
   const t = useT();
   const navigate = useNavigate();
-  const [order, setOrder] = useState<Order | undefined>(() => getOrder(Number(orderId)));
+  const queryClient = useQueryClient();
   const [now, setNow] = useState(Date.now());
   const [copied, setCopied] = useState<string | null>(null);
 
+  const orderQuery = useQuery<ApiOrder | null>({
+    queryKey: ["order", orderId],
+    queryFn: () => getMyOrder({ data: { orderId } }),
+    refetchInterval: 15_000,
+  });
+  const paymentInfo = useQuery({
+    queryKey: ["payment-info"],
+    queryFn: () => getPaymentInfo(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const order = orderQuery.data ?? null;
+
+  const payMutation = useMutation({
+    mutationFn: () => submitPayment({ data: { orderId } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["order", orderId] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+    },
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: () => cancelOrder({ data: { orderId } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      navigate({ to: "/orders" });
+    },
+  });
+
   useEffect(() => {
-    const refresh = () => setOrder(getOrder(Number(orderId)));
     const iv = setInterval(() => setNow(Date.now()), 1000);
-    window.addEventListener("orders:changed", refresh);
-    return () => {
-      clearInterval(iv);
-      window.removeEventListener("orders:changed", refresh);
-    };
-  }, [orderId]);
+    return () => clearInterval(iv);
+  }, []);
+
+  if (orderQuery.isLoading) {
+    return (
+      <>
+        <AppHeader title={t.myOrders} back />
+        <main className="space-y-3 px-4 pt-4">
+          <div className="h-40 animate-pulse rounded-2xl bg-card" />
+          <div className="h-24 animate-pulse rounded-2xl bg-card" />
+        </main>
+      </>
+    );
+  }
+
+  if (orderQuery.error) {
+    return (
+      <>
+        <AppHeader title={t.myOrders} back />
+        <main className="px-4 pt-8 text-center">
+          <p className="text-sm text-muted-foreground">{(orderQuery.error as Error).message}</p>
+          <button
+            onClick={() => orderQuery.refetch()}
+            className="mt-4 inline-flex rounded-full px-5 py-2.5 text-sm font-semibold btn-primary-glow no-tap-highlight"
+          >
+            {t.retry}
+          </button>
+        </main>
+      </>
+    );
+  }
 
   if (!order) {
     return (
@@ -60,8 +86,14 @@ function PaymentPage() {
     );
   }
 
-  const msLeft = Math.max(0, order.expiresAt - now);
-  const totalMs = ORDER_EXPIRE_MINUTES * 60 * 1000;
+  const status = uiStatus(order.status);
+  const cardNumber = paymentInfo.data?.cardNumber ?? "";
+  const cardHolder = paymentInfo.data?.cardHolder ?? "";
+  const expireMinutes = paymentInfo.data?.orderExpireMinutes ?? 10;
+  const expiresAt = new Date(order.expiresAt).getTime();
+
+  const msLeft = Math.max(0, expiresAt - now);
+  const totalMs = expireMinutes * 60 * 1000;
   const mm = Math.floor(msLeft / 60000).toString().padStart(2, "0");
   const ss = Math.floor((msLeft % 60000) / 1000).toString().padStart(2, "0");
   const progress = Math.max(0, Math.min(1, msLeft / totalMs));
@@ -76,14 +108,14 @@ function PaymentPage() {
     }
   };
 
-  const isTerminal = order.status !== "active";
+  const isTerminal = status !== "active";
 
   return (
     <>
-      <AppHeader title={t.orderNo(order.id)} subtitle={typeLabel(order.type)} back />
+      <AppHeader title={t.orderNo(order.orderNo)} subtitle={typeLabel(order.productType)} back />
       <main className="px-4 pb-8 pt-4 space-y-4">
         {/* Status banner */}
-        {order.status === "paid" && (
+        {status === "paid" && (
           <StatusBanner
             tone="warning"
             icon={<Sparkles className="h-5 w-5 animate-pulse" />}
@@ -91,15 +123,15 @@ function PaymentPage() {
             desc={t.paidDesc}
           />
         )}
-        {order.status === "delivered" && (
+        {status === "delivered" && (
           <StatusBanner
             tone="success"
             icon={<CheckCircle2 className="h-5 w-5" />}
             title={t.deliveredTitle}
-            desc={t.deliveredDesc(order.targetUsername)}
+            desc={t.deliveredDesc(order.recipientUsername)}
           />
         )}
-        {order.status === "expired" && (
+        {status === "expired" && (
           <StatusBanner tone="muted" icon={<Clock className="h-5 w-5" />} title={t.expiredTitle} desc={t.expiredDesc} />
         )}
 
@@ -129,14 +161,14 @@ function PaymentPage() {
               <span className="inline-flex items-center gap-1.5"><CreditCard className="h-3.5 w-3.5" /> UZCARD / HUMO</span>
               <span>Starbbot</span>
             </div>
-            <p className="mt-3 font-mono text-lg tracking-widest">{CARD_NUMBER}</p>
+            <p className="mt-3 font-mono text-lg tracking-widest">{cardNumber}</p>
             <div className="mt-3 flex items-end justify-between">
               <div>
                 <p className="text-[10px] uppercase tracking-widest text-white/60">{t.cardHolderLabel}</p>
-                <p className="text-sm font-semibold">{CARD_HOLDER}</p>
+                <p className="text-sm font-semibold">{cardHolder}</p>
               </div>
               <button
-                onClick={() => copy(CARD_NUMBER.replace(/\s/g, ""), "card")}
+                onClick={() => copy(cardNumber.replace(/\s/g, ""), "card")}
                 className="rounded-lg bg-white/15 px-3 py-1.5 text-xs font-medium backdrop-blur no-tap-highlight"
               >
                 {copied === "card" ? t.copiedShort : t.copyShort}
@@ -167,29 +199,33 @@ function PaymentPage() {
 
         {/* Details */}
         <section className="rounded-2xl border border-border bg-card p-4 text-sm">
-          <Row label={t.toWho} value={`@${order.targetUsername}`} />
+          <Row label={t.toWho} value={`@${order.recipientUsername}`} />
           <Row
             label={t.product}
-            value={order.type === "stars" ? `${formatAmount(order.quantity)} Stars` : `${t.monthsShort(order.quantity)} Premium`}
+            value={order.productType === "stars" ? `${formatAmount(order.quantity)} Stars` : `${t.monthsShort(order.quantity)} Premium`}
           />
-          <Row label={t.orderNumber} value={`#${order.id}`} />
+          <Row label={t.orderNumber} value={`#${order.orderNo}`} />
         </section>
 
         {/* Actions */}
         {!isTerminal && (
           <div className="space-y-2">
+            {(payMutation.error || cancelMutation.error) && (
+              <p className="rounded-2xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-center text-xs text-destructive">
+                {((payMutation.error ?? cancelMutation.error) as Error).message}
+              </p>
+            )}
             <button
-              onClick={() => markPaid(order.id)}
-              className="w-full rounded-full py-3.5 text-sm font-semibold btn-primary-glow no-tap-highlight"
+              onClick={() => payMutation.mutate()}
+              disabled={payMutation.isPending}
+              className="w-full rounded-full py-3.5 text-sm font-semibold btn-primary-glow disabled:opacity-40 no-tap-highlight"
             >
-              {t.iPaid}
+              {payMutation.isPending ? "…" : t.iPaid}
             </button>
             <button
-              onClick={() => {
-                cancelOrder(order.id);
-                navigate({ to: "/orders" });
-              }}
-              className="w-full rounded-full border border-border py-3 text-sm font-medium text-muted-foreground hover:text-foreground no-tap-highlight"
+              onClick={() => cancelMutation.mutate()}
+              disabled={cancelMutation.isPending}
+              className="w-full rounded-full border border-border py-3 text-sm font-medium text-muted-foreground hover:text-foreground disabled:opacity-40 no-tap-highlight"
             >
               {t.cancel}
             </button>
