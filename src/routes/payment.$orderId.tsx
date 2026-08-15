@@ -1,3 +1,27 @@
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Copy, Check, CreditCard, Clock, CheckCircle2, Sparkles } from "lucide-react";
+import { AppHeader } from "../components/AppHeader";
+import { formatAmount, typeLabel, uiStatus } from "../lib/format";
+import { cancelOrder, getMyOrder, type ApiOrder } from "../lib/orders.functions";
+import { getPaymentInfo, submitPayment } from "../lib/payments.functions";
+import { useT } from "../lib/language";
+
+export const Route = createFileRoute("/payment/$orderId")({
+  head: () => ({
+    meta: [
+      { title: "To‘lov — Starbbot" },
+      { name: "description", content: "Buyurtma uchun to‘lov ma’lumotlari." },
+      { property: "og:title", content: "To‘lov — Starbbot" },
+      { property: "og:description", content: "Buyurtma uchun to‘lov ma’lumotlari." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
+  component: PaymentPage,
+});
+
 function PaymentPage() {
   const { orderId } = Route.useParams();
   const t = useT();
@@ -102,7 +126,7 @@ function PaymentPage() {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(key);
-      setTimeout(() => setCopied((c) => (c === key ? null : c)), 1500);
+      setTimeout(() => setCopied((c: string | null) => (c === key ? null : c)), 1500);
     } catch {
       /* noop */
     }
