@@ -1,10 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Star, AtSign } from "lucide-react";
 import { AppHeader } from "../components/AppHeader";
-import { useTelegramUser } from "../hooks/useTelegramUser";
-import { createOrder, formatAmount } from "../lib/mock-store";
-import { usePricing } from "../hooks/usePricing";
+import { useSession } from "../hooks/useSession";
+import { formatAmount } from "../lib/format";
+import { createOrder } from "../lib/orders.functions";
+import { useAppConfig } from "../hooks/useAppConfig";
 import { useT } from "../lib/language";
 
 export const Route = createFileRoute("/stars")({
@@ -18,31 +20,39 @@ export const Route = createFileRoute("/stars")({
 });
 
 const PRESETS = [50, 100, 250, 500, 1000, 5000];
-const MAX_STARS = 5000;
 
 function StarsPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const t = useT();
   const [username, setUsername] = useState("");
-  const tg = useTelegramUser();
+  const { session } = useSession();
   const [qty, setQty] = useState<number>(100);
   const [custom, setCustom] = useState("");
-  const pricing = usePricing();
+  const { config } = useAppConfig();
+  const pricing = config.pricing;
+  const MAX_STARS = pricing.maxStars;
+  const MIN_STARS = pricing.minStars;
 
   const cleanUsername = username.trim().replace(/^@/, "");
   const validUsername = /^[a-zA-Z][a-zA-Z0-9_]{2,31}$/.test(cleanUsername);
   const price = qty * pricing.starPriceUzs;
-  const canSubmit = validUsername && qty >= 50 && qty <= MAX_STARS;
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      createOrder({ data: { recipientUsername: cleanUsername, productType: "stars", quantity: qty } }),
+    onSuccess: (order) => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      navigate({ to: "/payment/$orderId", params: { orderId: order.id } });
+    },
+  });
+
+  const canSubmit =
+    validUsername && qty >= MIN_STARS && qty <= MAX_STARS && !mutation.isPending;
 
   const submit = () => {
     if (!canSubmit) return;
-    const order = createOrder({
-      targetUsername: cleanUsername,
-      type: "stars",
-      quantity: qty,
-      basePrice: price,
-    });
-    navigate({ to: "/payment/$orderId", params: { orderId: String(order.id) } });
+    mutation.mutate();
   };
 
   return (
@@ -65,14 +75,14 @@ function StarsPage() {
               className="w-full rounded-xl border border-border bg-input py-3 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary-glow focus:outline-none focus:ring-2 focus:ring-primary-glow/30"
             />
           </div>
-          {tg.username && (
+          {session?.username && (
             <button
               type="button"
-              onClick={() => setUsername(tg.username!)}
+              onClick={() => setUsername(session.username!)}
               className="no-tap-highlight mt-2.5 flex w-full items-center justify-center gap-2 rounded-xl border border-primary-glow bg-primary/25 px-4 py-3 text-sm font-bold text-foreground"
             >
               <AtSign className="h-4 w-4" />
-              {t.selfButton(tg.username)}
+              {t.selfButton(session.username)}
             </button>
           )}
           {username && !validUsername && (
@@ -104,14 +114,14 @@ function StarsPage() {
           <div className="mt-3">
             <input
               type="number"
-              min={50}
+              min={MIN_STARS}
               max={MAX_STARS}
               value={custom}
               onChange={(e) => {
                 const v = e.target.value;
                 setCustom(v);
                 const n = Number(v);
-                if (Number.isFinite(n) && n > 0) setQty(Math.max(50, Math.min(MAX_STARS, Math.floor(n))));
+                if (Number.isFinite(n) && n > 0) setQty(Math.max(MIN_STARS, Math.min(MAX_STARS, Math.floor(n))));
               }}
               placeholder={t.customAmountPh}
               className="w-full rounded-xl border border-border bg-input px-3 py-3 text-sm placeholder:text-muted-foreground/60 focus:border-primary-glow focus:outline-none focus:ring-2 focus:ring-primary-glow/30"
@@ -130,12 +140,18 @@ function StarsPage() {
           />
         </div>
 
+        {mutation.error && (
+          <p className="rounded-2xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-center text-xs text-destructive">
+            {(mutation.error as Error).message}
+          </p>
+        )}
+
         <button
           onClick={submit}
           disabled={!canSubmit}
           className="w-full rounded-full py-3.5 text-sm font-semibold btn-primary-glow disabled:opacity-40 disabled:shadow-none no-tap-highlight"
         >
-          {t.goToPayment}
+          {mutation.isPending ? "…" : t.goToPayment}
         </button>
       </main>
     </>
