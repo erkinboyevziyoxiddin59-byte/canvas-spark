@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Star, Crown, Clock, CheckCircle2, XCircle, Sparkles, PackageOpen } from "lucide-react";
 import { AppHeader } from "../components/AppHeader";
-import { formatAmount, getOrders, type Order } from "../lib/mock-store";
+import { formatAmount, uiStatus, type UiOrderStatus } from "../lib/format";
+import { listMyOrders, type ApiOrder } from "../lib/orders.functions";
 import { useT } from "../lib/language";
 import type { Dict } from "../lib/i18n";
 
@@ -11,6 +12,10 @@ export const Route = createFileRoute("/orders")({
     meta: [
       { title: "Buyurtmalarim — Starbbot" },
       { name: "description", content: "Sizning barcha buyurtmalaringiz." },
+      { property: "og:title", content: "Buyurtmalarim — Starbbot" },
+      { property: "og:description", content: "Sizning barcha buyurtmalaringiz." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: OrdersPage,
@@ -18,23 +23,35 @@ export const Route = createFileRoute("/orders")({
 
 function OrdersPage() {
   const t = useT();
-  const [orders, setOrders] = useState<Order[]>([]);
-  useEffect(() => {
-    const refresh = () => setOrders(getOrders());
-    refresh();
-    window.addEventListener("orders:changed", refresh);
-    const iv = setInterval(refresh, 30_000);
-    return () => {
-      window.removeEventListener("orders:changed", refresh);
-      clearInterval(iv);
-    };
-  }, []);
+  const ordersQuery = useQuery<ApiOrder[]>({
+    queryKey: ["orders"],
+    queryFn: () => listMyOrders(),
+    refetchInterval: 30_000,
+  });
+
+  const orders = ordersQuery.data ?? [];
 
   return (
     <>
       <AppHeader title={t.myOrders} />
       <main className="px-4 pb-8 pt-4">
-        {orders.length === 0 ? (
+        {ordersQuery.isLoading ? (
+          <div className="space-y-2">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="h-24 animate-pulse rounded-2xl bg-card" />
+            ))}
+          </div>
+        ) : ordersQuery.error ? (
+          <div className="mt-10 text-center">
+            <p className="text-sm text-muted-foreground">{(ordersQuery.error as Error).message}</p>
+            <button
+              onClick={() => ordersQuery.refetch()}
+              className="mt-4 rounded-full px-5 py-2.5 text-sm font-semibold btn-primary-glow no-tap-highlight"
+            >
+              {t.retry}
+            </button>
+          </div>
+        ) : orders.length === 0 ? (
           <EmptyState />
         ) : (
           <ul className="space-y-2">
@@ -48,15 +65,15 @@ function OrdersPage() {
   );
 }
 
-function OrderCard({ order }: { order: Order }) {
+function OrderCard({ order }: { order: ApiOrder }) {
   const t = useT();
-  const isStars = order.type === "stars";
-  const statusMeta = getStatusMeta(order.status, t);
+  const isStars = order.productType === "stars";
+  const statusMeta = getStatusMeta(uiStatus(order.status), t);
   return (
     <li>
       <Link
         to="/payment/$orderId"
-        params={{ orderId: String(order.id) }}
+        params={{ orderId: order.id }}
         className="no-tap-highlight block rounded-2xl border border-border bg-card p-4 transition active:scale-[0.99]"
       >
         <div className="flex items-start gap-3">
@@ -79,10 +96,12 @@ function OrderCard({ order }: { order: Order }) {
               </span>
             </div>
             <p className="mt-0.5 truncate text-xs text-muted-foreground">
-              @{order.targetUsername} · #{order.id}
+              @{order.recipientUsername} · #{order.orderNo}
             </p>
             <div className="mt-2 flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">{new Date(order.createdAt).toLocaleString(t.langName === "Русский" ? "ru-RU" : "uz-UZ")}</span>
+              <span className="text-muted-foreground">
+                {new Date(order.createdAt).toLocaleString(t.langName === "Русский" ? "ru-RU" : "uz-UZ")}
+              </span>
               <span className="font-semibold text-foreground">{formatAmount(order.amountUzs)} UZS</span>
             </div>
           </div>
@@ -92,7 +111,7 @@ function OrderCard({ order }: { order: Order }) {
   );
 }
 
-function getStatusMeta(s: Order["status"], t: Dict) {
+function getStatusMeta(s: UiOrderStatus, t: Dict) {
   switch (s) {
     case "active":
       return {
