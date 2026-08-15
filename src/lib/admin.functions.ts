@@ -427,10 +427,20 @@ export const createMission = createServerFn({ method: "POST" })
   });
 
 export const updateMission = createServerFn({ method: "POST" })
-  .inputValidator((input: { id: string } & Record<string, unknown>) => ({
-    id: String(input.id),
-    ...validateMission(input),
-  }))
+  .inputValidator(
+    (input: {
+      id: string;
+      title?: unknown;
+      description?: unknown;
+      url?: unknown;
+      points?: unknown;
+      active?: unknown;
+    }) => ({
+      id: String(input.id),
+      ...validateMission(input),
+    }),
+  )
+
   .handler(async ({ data }) => {
     const core = await import("./server/core.server");
     const admin = await core.requireAdmin();
