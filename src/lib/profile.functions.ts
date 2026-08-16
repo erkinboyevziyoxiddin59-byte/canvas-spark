@@ -10,6 +10,8 @@ export interface ApiProfile {
   lifetimeStars: number;
   totalOrders: number;
   completedOrders: number;
+  premiumOrders: number;
+  premiumMonths: number;
   totalSpentUzs: number;
   level: { key: string; name: string; emoji: string; multiplier: number; threshold: number; gradient: string };
   nextLevel: { key: string; name: string; emoji: string; threshold: number } | null;
@@ -24,7 +26,7 @@ export const getMyProfile = createServerFn({ method: "GET" }).handler(async (): 
     core.db.rpc("user_points", { _user_id: user.id }),
     core.db.rpc("user_progress_value", { _user_id: user.id }),
     core.db.from("loyalty_levels").select("*").order("sort_order"),
-    core.db.from("orders").select("status, amount_uzs").eq("user_id", user.id),
+    core.db.from("orders").select("status, amount_uzs, product_type, quantity").eq("user_id", user.id),
   ]);
 
   const lifetime = Number(progress ?? 0);
@@ -47,6 +49,10 @@ export const getMyProfile = createServerFn({ method: "GET" }).handler(async (): 
     lifetimeStars: lifetime,
     totalOrders: rows.length,
     completedOrders: completed.length,
+    premiumOrders: completed.filter((o) => o.product_type !== "stars").length,
+    premiumMonths: completed
+      .filter((o) => o.product_type !== "stars")
+      .reduce((sum, o) => sum + o.quantity, 0),
     totalSpentUzs: completed.reduce((sum, o) => sum + o.amount_uzs, 0),
     level: {
       key: current?.key ?? "bronze",

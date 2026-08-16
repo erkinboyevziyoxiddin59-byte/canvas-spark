@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Star,
   Crown,
@@ -15,11 +16,10 @@ import {
 } from "lucide-react";
 import { AppHeader } from "../components/AppHeader";
 import { Row, StatCard } from "../components/StatBits";
-import { useTelegramUser } from "../hooks/useTelegramUser";
-import { formatAmount } from "../lib/mock-store";
+import { formatAmount } from "../lib/format";
 import { useI18n } from "../lib/language";
-import { getLoyaltyStats, type LoyaltyStats } from "../lib/loyalty";
-import { captureStartParam, referralCodeFor, referralLink } from "../lib/referrals";
+import { getMyProfile } from "../lib/profile.functions";
+import { getMyReferrals } from "../lib/referrals.functions";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({
@@ -37,19 +37,21 @@ export const Route = createFileRoute("/profile")({
 
 function ProfilePage() {
   const { t, lang, setLang } = useI18n();
-  const [stats, setStats] = useState<LoyaltyStats | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
-  const tg = useTelegramUser();
-  const refCode = referralCodeFor(tg.telegramId);
-  const refLink = referralLink(refCode);
 
-  useEffect(() => {
-    captureStartParam();
-    const refresh = () => setStats(getLoyaltyStats());
-    refresh();
-    window.addEventListener("orders:changed", refresh);
-    return () => window.removeEventListener("orders:changed", refresh);
-  }, []);
+  const profileQuery = useQuery({ queryKey: ["profile"], queryFn: () => getMyProfile() });
+  const referralQuery = useQuery({ queryKey: ["referrals"], queryFn: () => getMyReferrals() });
+
+  const profile = profileQuery.data ?? null;
+  const referrals = referralQuery.data ?? null;
+  const refCode = referrals?.code ?? "—";
+  const refLink = referrals?.link ?? "";
+  const tg = {
+    name: profile?.name ?? "",
+    username: profile?.username ?? null,
+    photoUrl: profile?.photoUrl ?? null,
+    telegramId: profile?.telegramId ?? "",
+  };
 
   const copy = useCallback((value: string, key: string) => {
     navigator.clipboard?.writeText(value);
@@ -74,14 +76,26 @@ function ProfilePage() {
         }
       />
       <main className="px-4 pb-8 pt-4">
-        {!stats ? (
+        {profileQuery.isLoading ? (
           <div className="h-64 animate-pulse rounded-2xl bg-card" />
+        ) : profileQuery.error || !profile ? (
+          <div className="mt-10 text-center">
+            <p className="text-sm text-muted-foreground">
+              {(profileQuery.error as Error | null)?.message ?? "—"}
+            </p>
+            <button
+              onClick={() => profileQuery.refetch()}
+              className="mt-4 rounded-full px-5 py-2.5 text-sm font-semibold btn-primary-glow no-tap-highlight"
+            >
+              {t.retry}
+            </button>
+          </div>
         ) : (
           <>
             {/* Identity + level */}
             <section
               className="relative overflow-hidden rounded-2xl border border-border p-5"
-              style={{ background: stats.level.gradient }}
+              style={{ background: profile.level.gradient }}
             >
               <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/25 blur-3xl" />
               <div className="relative flex items-center gap-3">
@@ -128,7 +142,7 @@ function ProfilePage() {
               </div>
               <div className="relative mt-4 flex items-center justify-between">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold text-white">
-                  {stats.level.emoji} {stats.level.name} {t.member} · ×{stats.level.multiplier}
+                  {profile.level.emoji} {profile.level.name} {t.member} · ×{profile.level.multiplier}
                 </span>
                 {copied && <span className="text-[11px] font-medium text-white/90">{t.copied}</span>}
               </div>
@@ -140,13 +154,13 @@ function ProfilePage() {
                 to="/points"
                 icon={<Star className="h-4 w-4" fill="currentColor" />}
                 label={t.openPoints}
-                value={`${formatAmount(stats.points)} ${t.points}`}
+                value={`${formatAmount(profile.points)} ${t.points}`}
               />
               <NavRow
                 to="/referral"
                 icon={<Users className="h-4 w-4" />}
                 label={t.openReferral}
-                value={t.countSuffix(stats.referralCount)}
+                value={t.countSuffix(referrals?.total ?? 0)}
               />
             </section>
 
@@ -155,22 +169,22 @@ function ProfilePage() {
               <StatCard
                 icon={<ListChecks className="h-4 w-4" />}
                 label={t.completedOrders}
-                value={String(stats.completedOrders)}
+                value={String(profile.completedOrders)}
               />
               <StatCard
                 icon={<Star className="h-4 w-4" fill="currentColor" />}
                 label={t.lifetimePurchased}
-                value={`${formatAmount(stats.lifetimeStars)} ⭐`}
+                value={`${formatAmount(profile.lifetimeStars)} ⭐`}
               />
               <StatCard
                 icon={<Crown className="h-4 w-4" />}
                 label={t.premiumSubs}
-                value={t.premiumSubsValue(stats.premiumOrders, stats.premiumMonths)}
+                value={t.premiumSubsValue(profile.premiumOrders, profile.premiumMonths)}
               />
               <StatCard
                 icon={<Users className="h-4 w-4" />}
                 label={t.referralEarnings}
-                value={`${formatAmount(stats.referralPoints)} ${t.points}`}
+                value={`${formatAmount(referrals?.pointsEarned ?? 0)} ${t.points}`}
               />
             </section>
 
@@ -201,7 +215,7 @@ function ProfilePage() {
                 <Row
                   icon={<BadgePercent className="h-4 w-4" />}
                   label={t.multiplier}
-                  value={`×${stats.level.multiplier}`}
+                  value={`×${profile.level.multiplier}`}
                 />
                 <button
                   onClick={copyCode}
