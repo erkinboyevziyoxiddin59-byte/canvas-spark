@@ -464,3 +464,53 @@ export const deleteMission = createServerFn({ method: "POST" })
     await core.audit(admin.id, "mission.delete", "missions", data.id, {});
     return { ok: true };
   });
+
+/* ---------------- loyalty levels & rewards ---------------- */
+
+export const updateLoyaltyLevels = createServerFn({ method: "POST" })
+  .inputValidator((input: { levels: { key: string; threshold: number; multiplier: number }[] }) => ({
+    levels: (input.levels ?? []).map((l) => {
+      const threshold = Math.floor(Number(l.threshold));
+      const multiplier = Number(l.multiplier);
+      if (!l.key || !Number.isFinite(threshold) || threshold < 0) throw new Error("invalid_level");
+      if (!Number.isFinite(multiplier) || multiplier <= 0 || multiplier > 100) throw new Error("invalid_level");
+      return { key: String(l.key), threshold, multiplier };
+    }),
+  }))
+  .handler(async ({ data }) => {
+    const core = await import("./server/core.server");
+    const admin = await core.requireAdmin();
+    for (const l of data.levels) {
+      const { error } = await core.db
+        .from("loyalty_levels")
+        .update({ threshold: l.threshold, multiplier: l.multiplier })
+        .eq("key", l.key);
+      if (error) throw new core.AppError("levels_update_failed");
+    }
+    await core.audit(admin.id, "levels.update", "loyalty_levels", null, { levels: data.levels as never });
+    return { ok: true };
+  });
+
+export const updateRewards = createServerFn({ method: "POST" })
+  .inputValidator((input: { rewards: { id: string; cost: number; stars: number }[] }) => ({
+    rewards: (input.rewards ?? []).map((r) => {
+      const cost = Math.floor(Number(r.cost));
+      const stars = Math.floor(Number(r.stars));
+      if (!r.id || !Number.isFinite(cost) || cost <= 0) throw new Error("invalid_reward");
+      if (!Number.isFinite(stars) || stars <= 0) throw new Error("invalid_reward");
+      return { id: String(r.id), cost, stars };
+    }),
+  }))
+  .handler(async ({ data }) => {
+    const core = await import("./server/core.server");
+    const admin = await core.requireAdmin();
+    for (const r of data.rewards) {
+      const { error } = await core.db
+        .from("rewards")
+        .update({ cost_points: r.cost, output_stars: r.stars })
+        .eq("id", r.id);
+      if (error) throw new core.AppError("rewards_update_failed");
+    }
+    await core.audit(admin.id, "rewards.update", "rewards", null, { rewards: data.rewards as never });
+    return { ok: true };
+  });
