@@ -1,27 +1,18 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { Wrench, Star } from "lucide-react";
-import { DEFAULT_MAINTENANCE, getMaintenance, type Maintenance } from "../lib/mock-store";
+import { useAppConfig } from "../hooks/useAppConfig";
 import { useT } from "../lib/language";
 
 export function MaintenanceGate({ children }: { children: ReactNode }) {
   const t = useT();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const [state, setState] = useState<Maintenance>(DEFAULT_MAINTENANCE);
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    const refresh = () => {
-      setState(getMaintenance());
-      setReady(true);
-    };
-    refresh();
-    window.addEventListener("orders:changed", refresh);
-    return () => window.removeEventListener("orders:changed", refresh);
-  }, []);
+  const { config, isReady } = useAppConfig();
+  const state = config.maintenance;
 
   const isAdminRoute = pathname.startsWith("/admin");
-  if (!ready || isAdminRoute || !state.enabled) return <>{children}</>;
+  if (!isReady || isAdminRoute || !state.enabled) return <>{children}</>;
+
 
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6 text-center">
