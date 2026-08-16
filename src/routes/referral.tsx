@@ -1,19 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Check, Copy, Link2, Send } from "lucide-react";
 import { AppHeader } from "../components/AppHeader";
 import { MiniStat } from "../components/StatBits";
-import { useTelegramUser } from "../hooks/useTelegramUser";
-import { formatAmount } from "../lib/mock-store";
+import { formatAmount } from "../lib/format";
 import { useT } from "../lib/language";
-import { getLoyaltyStats, type LoyaltyStats } from "../lib/loyalty";
-import {
-  captureStartParam,
-  getInvitedBy,
-  referralCodeFor,
-  referralLink,
-  shareReferralLink,
-} from "../lib/referrals";
+import { getMyReferrals, type ApiReferralSummary } from "../lib/referrals.functions";
 
 export const Route = createFileRoute("/referral")({
   head: () => ({
@@ -35,51 +28,61 @@ export const Route = createFileRoute("/referral")({
   component: ReferralPage,
 });
 
+function shareReferralLink(link: string, text: string) {
+  const url = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
+  const tg = (window as unknown as { Telegram?: { WebApp?: { openTelegramLink?: (u: string) => void } } }).Telegram
+    ?.WebApp;
+  if (tg?.openTelegramLink) tg.openTelegramLink(url);
+  else window.open(url, "_blank", "noopener");
+}
+
 function ReferralPage() {
   const t = useT();
-  const [stats, setStats] = useState<LoyaltyStats | null>(null);
   const [copied, setCopied] = useState(false);
-  const tg = useTelegramUser();
-  const refCode = referralCodeFor(tg.telegramId);
-  const refLink = referralLink(refCode);
-  const invitedBy = typeof window !== "undefined" ? getInvitedBy() : null;
 
-  useEffect(() => {
-    captureStartParam();
-    const refresh = () => setStats(getLoyaltyStats());
-    refresh();
-    window.addEventListener("orders:changed", refresh);
-    return () => window.removeEventListener("orders:changed", refresh);
-  }, []);
+  const refQuery = useQuery<ApiReferralSummary>({
+    queryKey: ["referrals"],
+    queryFn: () => getMyReferrals(),
+  });
+  const data = refQuery.data;
 
   const copyLink = useCallback(() => {
-    navigator.clipboard?.writeText(refLink);
+    if (!data) return;
+    navigator.clipboard?.writeText(data.link);
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
-  }, [refLink]);
+  }, [data]);
 
   return (
     <>
       <AppHeader title={t.referral} />
       <main className="px-4 pb-8 pt-4">
-        {!stats ? (
+        {refQuery.isLoading ? (
           <div className="h-64 animate-pulse rounded-2xl bg-card" />
+        ) : refQuery.error || !data ? (
+          <div className="mt-10 text-center">
+            <p className="text-sm text-muted-foreground">{(refQuery.error as Error | null)?.message ?? "—"}</p>
+            <button
+              onClick={() => refQuery.refetch()}
+              className="mt-4 rounded-full px-5 py-2.5 text-sm font-semibold btn-primary-glow no-tap-highlight"
+            >
+              {t.retry}
+            </button>
+          </div>
         ) : (
           <>
             <section className="rounded-2xl border border-border bg-card p-4">
               <h2 className="text-sm font-semibold">{t.referralLink}</h2>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {t.referralIntro(stats.settings.referralPoints)}
-              </p>
+              <p className="mt-1 text-xs text-muted-foreground">{t.referralIntro(data.pointsPerReferral)}</p>
 
               <div className="mt-3 flex items-center gap-2 rounded-xl border border-border bg-input px-3 py-2">
                 <Link2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <span className="min-w-0 flex-1 truncate text-xs">{refLink}</span>
+                <span className="min-w-0 flex-1 truncate text-xs">{data.link}</span>
               </div>
 
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <button
-                  onClick={() => shareReferralLink(refLink, t.shareText)}
+                  onClick={() => shareReferralLink(data.link, t.shareText)}
                   className="no-tap-highlight flex items-center justify-center gap-2 rounded-full py-2.5 text-xs font-semibold btn-primary-glow"
                 >
                   <Send className="h-4 w-4" />
@@ -89,50 +92,41 @@ function ReferralPage() {
                   onClick={copyLink}
                   className="no-tap-highlight flex items-center justify-center gap-2 rounded-full border border-border py-2.5 text-xs font-semibold"
                 >
-                  {copied ? (
-                    <Check className="h-4 w-4 text-success" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
+                  {copied ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
                   {t.copyLink}
                 </button>
               </div>
 
               <div className="mt-3 flex items-center justify-between rounded-xl border border-border bg-input px-3 py-2">
                 <span className="text-xs text-muted-foreground">{t.referralCode}</span>
-                <span className="text-sm font-semibold">{refCode}</span>
+                <span className="text-sm font-semibold">{data.code}</span>
               </div>
             </section>
 
             <section className="mt-4 grid grid-cols-3 gap-2 text-center">
-              <MiniStat label={t.invited} value={String(stats.referralCount)} />
-              <MiniStat label={t.purchased} value={String(stats.referralPurchasedCount)} />
-              <MiniStat label={t.earned} value={formatAmount(stats.referralPoints)} />
+              <MiniStat label={t.invited} value={String(data.total)} />
+              <MiniStat label={t.purchased} value={String(data.qualified)} />
+              <MiniStat label={t.earned} value={formatAmount(data.pointsEarned)} />
             </section>
 
             <section className="mt-5">
               <h3 className="mb-2 text-sm font-semibold">{t.invited}</h3>
               <div className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
-                {stats.friends.length === 0 ? (
+                {data.entries.length === 0 ? (
                   <p className="px-4 py-4 text-xs text-muted-foreground">{t.noFriends}</p>
                 ) : (
-                  stats.friends.map((f) => (
+                  data.entries.map((f) => (
                     <div key={f.id} className="flex items-center justify-between px-4 py-3">
-                      <span className="min-w-0 truncate text-sm">
-                        {f.username ? `@${f.username}` : f.name}
-                      </span>
+                      <span className="min-w-0 truncate text-sm">{f.name}</span>
                       <span className="ml-3 shrink-0 text-[11px] font-medium">
-                        {f.awardedAt
-                          ? `${t.friendAwarded} +${formatAmount(f.awardedPoints)}`
+                        {f.status === "rewarded"
+                          ? `${t.friendAwarded} +${formatAmount(f.pointsAwarded)}`
                           : t.friendPending}
                       </span>
                     </div>
                   ))
                 )}
               </div>
-              {invitedBy && (
-                <p className="mt-2 text-[11px] text-muted-foreground">{t.invitedByYou(invitedBy)}</p>
-              )}
             </section>
           </>
         )}
