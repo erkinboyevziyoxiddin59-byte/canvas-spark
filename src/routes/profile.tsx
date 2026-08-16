@@ -179,7 +179,7 @@ function ProfilePage() {
               <StatCard
                 icon={<Crown className="h-4 w-4" />}
                 label={t.premiumSubs}
-                value={t.premiumSubsValue(profile.totalOrders - profile.completedOrders >= 0 ? 0 : 0, 0)}
+                value={t.premiumSubsValue(profile.premiumOrders, profile.premiumMonths)}
               />
               <StatCard
                 icon={<Users className="h-4 w-4" />}
